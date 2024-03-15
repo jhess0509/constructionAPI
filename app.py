@@ -146,7 +146,7 @@ def create():
 @app.route('/data/allItems', methods=['GET'])
 def get_all_items():
     # Query all projects
-    projects = Project.query.filter(Project.status != 'completed').all()
+    projects = Project.query.filter(Project.status != 'complete').all()
 
     # Convert projects to a JSON-compatible format
     projects_json = [
