@@ -9,7 +9,7 @@ import time
 db = SQLAlchemy()
 # create the app
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow requests from any origin
 # change string to the name of your database; add path if necessary
 db_name = 'sockmarket.db'
 
