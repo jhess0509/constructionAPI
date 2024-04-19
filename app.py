@@ -54,6 +54,12 @@ class TaskForeman(db.Model):
     taskId = db.Column(db.Integer, nullable=False)
 
 
+class Foreman(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    firstName = db.Column(db.String(100), nullable=False)
+    lastName = db.Column(db.String(100), nullable=False)
+
+
 with app.app_context():
     db.create_all()
 
@@ -73,7 +79,6 @@ def getActiveProjects():
     )). \
         filter(Project.id.notin_(subquery)).all()
 
-    print(projects_without_specific_color_tasks)
     # Convert the list of Project objects to a JSON-compatible format
     active_projects_json = [
         {
@@ -93,7 +98,6 @@ def getActiveProjects():
     for project in projects_copy:
         if project['status'] == 'complete':
             active_projects_json.remove(project)
-    print(active_projects_json)
 
     # Return the JSON response
     return jsonify(active_projects_json)
@@ -161,7 +165,6 @@ def getCompletedProjects():
 @app.post('/data/createProject')
 def create():
     content = request.json
-    print(content)
     start_str = content['start']
     end_str = content['end']
 
@@ -202,7 +205,6 @@ def create():
 @app.post('/data/createTask')
 def createTask():
     content = request.json
-    print(content)
     start_str = content['start']
     end_str = content['end']
 
@@ -210,10 +212,9 @@ def createTask():
     end_date = convertDate(end_str)
 
     createTask = Task(name=content['name'],
-                            projectId=content['project_id'],
-                            start=start_date,
-                            end=end_date)
-    print(createTask)
+                      projectId=content['project_id'],
+                      start=start_date,
+                      end=end_date)
 
     db.session.add(createTask)
     db.session.flush()  # this is to get the projectID
@@ -236,19 +237,15 @@ def edit_task():
     if task is None:
         return jsonify({'error': 'Task not found'}), 404
 
-    # Update the status of the project to "on hold"
-    print(convertDate(content['start']))
 
     task.start = convertDate(content['start'])
     task.end = convertDate(content['end'])
 
-    tasks = Task.query.filter_by(projectId=task.projectId).all()
+    task_foreman = TaskForeman.query.filter_by(taskId=task.id).first()
+    task_foreman.name = content['foreman']
 
-    for taskList in tasks:
-        print(taskList)
-        print(taskList.id)
-        task_foreman = TaskForeman.query.filter_by(taskId=taskList.id).first()
-        task_foreman.name = content['foreman']
+    project = Project.query.get(task.projectId)
+    project.companyName = content['foreman']
 
     # Commit the changes to the database
     db.session.commit()
@@ -261,27 +258,28 @@ def edit_task():
     }}), 200
 
 
-
-
-
-
 @app.post('/data/updateTask')
 def updateTask():
     content = request.json
-    print(content)
 
     task = Task.query.get(content['id'])
 
     if task:
 
         # Convert the timestamp to a Python datetime object
-        start_datetime = datetime.utcfromtimestamp(content['start'])
-        end_datetime = datetime.utcfromtimestamp(content['end'])
-        # Extract only the date part
-        start_date = start_datetime.date()
-        end_date = end_datetime.date()
+        start_datetime_utc = datetime.utcfromtimestamp(content['start'])
+        end_datetime_utc = datetime.utcfromtimestamp(content['end'])
 
-        print(start_date)
+        # Extract date part in UTC
+        start_date = start_datetime_utc.date()
+        end_date = end_datetime_utc.date()
+
+        print("Start Datetime UTC:", start_datetime_utc)
+        print("Start Date UTC:", start_date)
+
+        print("Start Datetime UTC:", end_datetime_utc)
+        print("Start Date UTC:", end_date)
+
         # Update the attributes of the item
         task.name = content['title']  # Assuming you're updating the 'name' attribute
         task.actionText = content['actionText']
@@ -300,7 +298,6 @@ def updateTask():
 @app.post('/data/createHoliday')
 def createHoliday():
     content = request.json
-    print(content)
     start_str = content['start']
     end_str = content['end']
 
@@ -355,7 +352,6 @@ def get_all_items():
         'groups': projects_json,
         'items': tasks_json
     }
-
     # Return the JSON response
     return jsonify(response)
 
@@ -479,9 +475,142 @@ def convert_to_action_needed(id):
     }}), 200
 
 
+@app.route('/data/delete/<int:task_id>', methods=['PUT'])
+def delete(task_id):
+    # Retrieve the project from the database
+    task = Task.query.get(task_id)
+
+    # Check if the project exists
+    if task is None:
+        return jsonify({'error': 'Project not found'}), 404
+
+    if task:
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({'message': 'Task Removed', 'project': {
+            'id': task.id,
+            # Include other project attributes as needed
+        }}), 200
+
+    else:
+        return jsonify({'error': 'Task not found'}), 404
+
+
 def convertDate(date):
     formattedDate = datetime.fromisoformat(date.replace('Z', '+00:00'))
     return formattedDate.date()
+
+
+# Create Endpoint
+@app.route('/foremen', methods=['POST'])
+def create_foreman():
+    data = request.get_json()
+    new_foreman = Foreman(firstName=data['firstname'], lastName=data['lastname'])
+    db.session.add(new_foreman)
+    db.session.commit()
+    return jsonify({'message': 'Foreman created successfully'}), 201
+
+
+@app.route('/foremen', methods=['GET'])
+def get_all_foremen():
+    foremen = Foreman.query.all()
+    result = []
+    for foreman in foremen:
+        result.append({'id': foreman.id, 'firstname': foreman.firstName, 'lastname': foreman.lastName})
+    return jsonify(result), 200
+
+
+@app.route('/foremen/<int:id>', methods=['PUT'])
+def edit_foreman(id):
+    foreman = Foreman.query.get_or_404(id)
+    data = request.get_json()
+    foreman.firstName = data['firstName']
+    foreman.lastName = data['lastName']
+    db.session.commit()
+    return jsonify({'message': 'Foreman updated successfully'}), 200
+
+
+@app.route('/foremen/<int:id>', methods=['DELETE'])
+def delete_foreman(id):
+    foreman = Foreman.query.get_or_404(id)
+    db.session.delete(foreman)
+    db.session.commit()
+    return jsonify({'message': 'Foreman deleted successfully'}), 200
+
+
+# saving initial foreman information
+@app.route('/foremen/migrate', methods=['GET'])
+def save_foremen():
+    foremen_data = [
+        {'firstname': 'Donnell', 'lastname': 'Soler'},
+        {'firstname': 'Norberto', 'lastname': 'Reyes Hernandez'},
+        {'firstname': 'Flavio', 'lastname': 'Serrano Gonzalez'},
+        {'firstname': 'Jose', 'lastname': 'Resendiz Soto'},
+        {'firstname': 'Rendi', 'lastname': 'Venegas-Cruz'},
+        {'firstname': 'Gerardo', 'lastname': 'Chavez Rojo'},
+        {'firstname': 'Thomas', 'lastname': 'Arthur'},
+        {'firstname': 'Francisco', 'lastname': 'Hernandez'},
+        {'firstname': 'Richard', 'lastname': 'Lovely'},
+        {'firstname': 'Chad', 'lastname': 'White'},
+        {'firstname': 'Matt', 'lastname': 'Gesner'},
+        {'firstname': 'Gary', 'lastname': 'Christie'},
+        {'firstname': 'Shaun', 'lastname': 'Ware'},
+        {'firstname': 'Stephen', 'lastname': 'Fowler'},
+        {'firstname': 'Thomas', 'lastname': 'Burgess'},
+        {'firstname': 'David', 'lastname': 'McDaniel'},
+        {'firstname': 'Eric', 'lastname': 'Rodrigues'},
+        {'firstname': 'Brett', 'lastname': 'Parsley'},
+        {'firstname': 'Jonathan', 'lastname': 'Smith'},
+        {'firstname': 'Adam', 'lastname': 'Hart'},
+        {'firstname': 'Darren', 'lastname': 'McManus'},
+        {'firstname': 'Mark', 'lastname': 'Collins'},
+        {'firstname': 'Hager', 'lastname': 'McCune'},
+        {'firstname': 'David', 'lastname': 'Harwell'},
+        {'firstname': 'Keith', 'lastname': 'Breedlove'},
+        {'firstname': 'William', 'lastname': 'Whitlow'},
+        {'firstname': 'Jeffrey', 'lastname': 'Whittington'},
+        {'firstname': 'Margarito', 'lastname': 'Mejia Romero'},
+        {'firstname': 'Nectali', 'lastname': 'Bueso Canales'},
+        {'firstname': 'Henry', 'lastname': 'Brown'},
+        {'firstname': 'Brian', 'lastname': 'Lemon'},
+        {'firstname': 'Jason', 'lastname': 'Prince'},
+        {'firstname': 'Sergio', 'lastname': 'Almanza Navarro'},
+        {'firstname': 'Tyler', 'lastname': 'Birdsong'},
+        {'firstname': 'Carlos', 'lastname': 'Sanchez Farfan'},
+        {'firstname': 'Christopher', 'lastname': 'Chalk'},
+        {'firstname': 'Oscar', 'lastname': 'Martinez Tobar'},
+        {'firstname': 'Christopher', 'lastname': 'Perry'},
+        {'firstname': 'Marco', 'lastname': 'Avila Pena'},
+        {'firstname': 'Brandon', 'lastname': 'Ledford'},
+        {'firstname': 'Kary', 'lastname': 'Combs'},
+        {'firstname': 'Joshua', 'lastname': 'Coley'},
+        {'firstname': 'Daniel', 'lastname': 'Outwater'},
+        {'firstname': 'Mark', 'lastname': 'Collins'},
+        {'firstname': 'Gregory', 'lastname': 'Leatherman'},
+        {'firstname': 'Jeffrey', 'lastname': 'Turman'},
+        {'firstname': 'Benjamin', 'lastname': 'Hubbard'},
+        {'firstname': 'Michael', 'lastname': 'Romeo'},
+        {'firstname': 'Cory', 'lastname': 'Blackwell'},
+        {'firstname': 'Scott', 'lastname': 'Barbee'},
+        {'firstname': 'Richard', 'lastname': 'Birdsong'},
+        {'firstname': 'Lindsay', 'lastname': 'Austin'},
+        {'firstname': 'Rhett', 'lastname': 'Cox'},
+        {'firstname': 'Brandon', 'lastname': 'Ervin'},
+        {'firstname': 'Austin', 'lastname': 'Locklear'},
+        {'firstname': 'David', 'lastname': 'Mangiamele'},
+        {'firstname': 'Donnie', 'lastname': 'Doster'},
+        {'firstname': 'Drew', 'lastname': 'Barnett'},
+        {'firstname': 'Jeff', 'lastname': 'Crump'}
+    ]
+    for foreman_info in foremen_data:
+        new_foreman = Foreman(firstName=foreman_info['firstname'], lastName=foreman_info['lastname'])
+        db.session.add(new_foreman)
+    db.session.commit()
+    # Save foremen into the database
+
+
+
+
 
 
 if __name__ == '__main__':
