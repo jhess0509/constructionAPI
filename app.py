@@ -30,6 +30,10 @@ class Project(db.Model):
     start = db.Column(db.Date, nullable=False)
     end = db.Column(db.Date, nullable=False)
 
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -139,6 +143,13 @@ def getDict():
 
     # Return the dictionary as JSON response
     return jsonify(task_foremen_dict)
+
+
+@app.route('/data/<int:project_id>', methods=['DELETE'])
+def delete_project(project_id):
+    project = Project.query.get_or_404(project_id)
+    project.delete()
+    return jsonify({'message': 'Project deleted successfully'})
 
 
 @app.route('/data/getCompletedProjects')
