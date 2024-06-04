@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
@@ -12,8 +14,10 @@ db = SQLAlchemy()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow requests from any origin
 # change string to the name of your database; add path if necessary
+# Specify the folder where you want to store the database file
 db_name = 'sockmarket.db'
 
+# Configure the database URI
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_name
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -62,6 +66,12 @@ class Foreman(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     firstName = db.Column(db.String(100), nullable=False)
     lastName = db.Column(db.String(100), nullable=False)
+
+
+class TaskList(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    type = db.Column(db.String(100), nullable=True)
+    task = db.Column(db.String(100), nullable=True)
 
 
 with app.app_context():
@@ -143,6 +153,23 @@ def getDict():
 
     # Return the dictionary as JSON response
     return jsonify(task_foremen_dict)
+
+
+@app.route('/data/getTaskList')
+def getTaskList():
+    task_list = TaskList.query.all()
+
+    taskList_json = [
+        {
+            'id': taskList.id,
+            'type': taskList.type,
+            'task': taskList.task,  # Convert datetime to string for JSON serialization  # Convert datetime to string for JSON serialization
+        }
+        for taskList in task_list
+    ]
+
+    # Return the JSON response
+    return jsonify(taskList_json)
 
 
 @app.route('/data/<int:project_id>', methods=['DELETE'])
@@ -248,7 +275,6 @@ def edit_task():
     if task is None:
         return jsonify({'error': 'Task not found'}), 404
 
-
     task.start = convertDate(content['start'])
     task.end = convertDate(content['end'])
 
@@ -285,12 +311,6 @@ def updateTask():
         start_date = start_datetime_utc.date()
         end_date = end_datetime_utc.date()
 
-        print("Start Datetime UTC:", start_datetime_utc)
-        print("Start Date UTC:", start_date)
-
-        print("Start Datetime UTC:", end_datetime_utc)
-        print("Start Date UTC:", end_date)
-
         # Update the attributes of the item
         task.name = content['title']  # Assuming you're updating the 'name' attribute
         task.actionText = content['actionText']
@@ -321,6 +341,32 @@ def createHoliday():
 
     db.session.add(createHoliday)
     db.session.commit()
+
+
+@app.post('/data/createTaskList')
+def createTaskList():
+
+    try:
+        content = request.json
+        createTaskList = TaskList(task=content['task'],
+                                  type=None)
+
+        db.session.add(createTaskList)
+        db.session.commit()
+        return jsonify({'message': 'Task created successfully'}), 200
+    except:
+        return jsonify({'error': 'Error'}), 404
+
+
+@app.route('/data/taskList/<int:task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    task = TaskList.query.get(task_id)
+    if task:
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({'message': 'Task deleted successfully'}), 200
+    else:
+        return jsonify({'error': 'Task not found'}), 404
 
 
 @app.route('/data/allItems', methods=['GET'])
@@ -620,8 +666,80 @@ def save_foremen():
     # Save foremen into the database
 
 
+# saving initial taskList information
+@app.route('/data/migrate', methods=['GET'])
+def save_taskList():
+    project_tasks = [
+        {'type': 'Clear & Grub / Demolition', 'task': 'Traffic Control'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Clear & Grub'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Asphalt Demolition'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Curb Demolition'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Sawcutting'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Demo Concrete Sidewalk/Flatwork'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Building Demolition'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Select Brush Removal'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Fence Removal'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Remove Existing Storm Pipe'},
+        {'type': 'Clear & Grub / Demolition', 'task': 'Remove Existing Storm Drainage Structure'},
 
+        {'type': 'Erosion Control', 'task': 'Construction Entrance'},
+        {'type': 'Erosion Control',
+         'task': 'Concrete Washout Pit, Note: washout/spoinls for other trades is not included'},
+        {'type': 'Erosion Control', 'task': 'Truck Wash (Installation / Removal)'},
+        {'type': 'Erosion Control',
+         'task': 'Truck Wash (Sitework labor), truck wash fees, labor for other trades not included'},
+        {'type': 'Erosion Control', 'task': 'Silt Fence'},
+        {'type': 'Erosion Control', 'task': 'Burlap Baffle Fence'},
+        # ... (other erosion control tasks)
 
+        {'type': 'Rough Grading', 'task': 'Topsoil (Strip 6" & Place On site)'},
+        {'type': 'Rough Grading', 'task': 'Topsoil (Respread On site)'},
+        # ... (other rough grading tasks)
+
+        {'type': 'Fine Grading', 'task': 'Fine Grade Building Pad (+-0.1\')'},
+        {'type': 'Fine Grading', 'task': 'Fine Grade Curb (+-0.1\')'},
+        # ... (other fine grading tasks)
+
+        {'type': 'Storm Drainage', 'task': 'Outlet Control Structure'},
+        {'type': 'Storm Drainage', 'task': 'Area Drain'},
+        # ... (other storm drainage tasks)
+
+        {'type': 'Detention System', 'task': 'Excavate for Detention System (Stockpile On Site)'},
+        {'type': 'Detention System', 'task': 'Excavate for Detention System (Waste Off Site)'},
+        # ... (other detention system tasks)
+
+        {'type': 'Sand Filter', 'task': 'Excavate for Sand Filter (Waste Off Site)'},
+        {'type': 'Sand Filter', 'task': '6" Perforated PVC'},
+        # ... (other sand filter tasks)
+
+        {'type': 'Roof Drains', 'task': '4" HDPE Roof Drain'},
+        {'type': 'Roof Drains', 'task': '6" HDPE Roof Drain'},
+        # ... (other roof drain tasks)
+
+        {'type': 'Water System', 'task': 'Tap / Meter Assembly'},
+        {'type': 'Water System', 'task': 'Tie Into Water Meter (Installed by Others)'},
+        # ... (other water system tasks)
+
+        {'type': 'Sewer System', 'task': 'Tie Into CO/MH at ROW Line'},
+        {'type': 'Sewer System', 'task': 'Sanitary Sewer Manhole'},
+        # ... (other sewer system tasks)
+
+        {'type': 'Concrete', 'task': '6" Vertical Curb'},
+        {'type': 'Concrete', 'task': '18" Curb & Gutter'},
+        # ... (other concrete tasks)
+
+        {'type': 'Asphalt Paving', 'task': '6" ABC Stone Placement (LDP)'},
+        {'type': 'Asphalt Paving', 'task': '8" ABC Stone Placement (HDP)'},
+        # ... (other asphalt paving tasks)
+
+        {'type': 'Misc Items', 'task': 'Gray Modular Block Retaining Wall w/ Certification'},
+        {'type': 'Misc Items', 'task': 'Brick Pavers / Decorative Concrete / Base Course'},
+    ]
+    for taskList in project_tasks:
+        new_TaskList = TaskList(type=taskList['type'], task=taskList['task'])
+        db.session.add(new_TaskList)
+    db.session.commit()
+    # Save foremen into the database
 
 
 if __name__ == '__main__':
