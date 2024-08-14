@@ -2,8 +2,9 @@ import os
 
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_
+from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.sql import text
+from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime
 import time
@@ -24,6 +25,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
 # initialize the app with Flask-SQLAlchemy
 db.init_app(app)
+migrate = Migrate(app, db)
 
 
 class Project(db.Model):
@@ -57,10 +59,15 @@ class Holiday(db.Model):
 
 
 class TaskForeman(db.Model):
+    __tablename__ = 'task_foreman'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    taskId = db.Column(db.Integer, nullable=False)
+    taskId = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=False)
 
+    # Define unique constraint for the taskId column
+    __table_args__ = (
+        UniqueConstraint('taskId', name='unique_task_id'),
+    )
 
 class Foreman(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -279,7 +286,11 @@ def edit_task():
     task.end = convertDate(content['end'])
 
     task_foreman = TaskForeman.query.filter_by(taskId=task.id).first()
+    print(task.id)
+    print(task_foreman.name)
+    print(content)
     task_foreman.name = content['foreman']
+    print(task_foreman.name)
 
     project = Project.query.get(task.projectId)
     project.companyName = content['foreman']
