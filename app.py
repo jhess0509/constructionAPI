@@ -6,7 +6,7 @@ from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.sql import text
 from flask_migrate import Migrate
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import time
 
 # this variable, db, will be used for all SQLAlchemy commands
@@ -256,6 +256,11 @@ def createTask():
     start_date = convertDate(start_str)
     end_date = convertDate(end_str)
 
+    print(start_str)
+    print(end_str)
+    print(start_date)
+    print(end_date)
+
     createTask = Task(name=content['name'],
                       projectId=content['project_id'],
                       start=start_date,
@@ -286,11 +291,11 @@ def edit_task():
     task.end = convertDate(content['end'])
 
     task_foreman = TaskForeman.query.filter_by(taskId=task.id).first()
-    print(task.id)
-    print(task_foreman.name)
-    print(content)
+    print(content['start'])
+    print(content['end'])
+    print(task.start)
+    print(task.end)
     task_foreman.name = content['foreman']
-    print(task_foreman.name)
 
     project = Project.query.get(task.projectId)
     project.companyName = content['foreman']
@@ -313,12 +318,13 @@ def updateTask():
     task = Task.query.get(content['id'])
 
     if task:
-
         # Convert the timestamp to a Python datetime object
-        start_datetime_utc = datetime.utcfromtimestamp(content['start'])
-        end_datetime_utc = datetime.utcfromtimestamp(content['end'])
+        start_datetime_utc = datetime.fromtimestamp(content['start'], timezone.utc)
+        end_datetime_utc = datetime.fromtimestamp(content['end'], timezone.utc)
+        print(start_datetime_utc)
+        print(end_datetime_utc)
 
-        # Extract date part in UTC
+        # Extract date in UTC
         start_date = start_datetime_utc.date()
         end_date = end_datetime_utc.date()
 
