@@ -8,9 +8,11 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime, timezone, timedelta
 import time
+import sqlite3
+from config import Config
+import csv
 
-# this variable, db, will be used for all SQLAlchemy commands
-db = SQLAlchemy()
+
 # create the app
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})  # Allow requests from any origin
@@ -18,13 +20,12 @@ CORS(app, resources={r"/*": {"origins": "*"}})  # Allow requests from any origin
 # Specify the folder where you want to store the database file
 db_name = 'sockmarket.db'
 
-# Configure the database URI
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_name
+# Update PostgreSQL URI here
+app.config.from_object(Config)  # Load the configuration from the Config class
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
-# initialize the app with Flask-SQLAlchemy
-db.init_app(app)
+db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
 
