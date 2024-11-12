@@ -4,12 +4,12 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, UniqueConstraint
 from sqlalchemy.sql import text
-from flask_migrate import Migrate
 from flask_cors import CORS
 from datetime import datetime, timezone, timedelta
 import time
 import sqlite3
 from config import Config
+import psycopg2
 import csv
 
 
@@ -26,7 +26,6 @@ app.config.from_object(Config)  # Load the configuration from the Config class
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
 db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
 
 class Project(db.Model):
