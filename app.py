@@ -314,27 +314,39 @@ def edit_task():
 @app.post('/data/updateTask')
 def updateTask():
     content = request.json
+    print(content)
 
     task = Task.query.get(content['id'])
 
     if task:
         # Convert the timestamp to a Python datetime object
-        start_datetime_utc = datetime.fromtimestamp(content['start'], timezone.utc)
-        end_datetime_utc = datetime.fromtimestamp(content['end'], timezone.utc)
-        print(start_datetime_utc)
-        print(end_datetime_utc)
+        start_str = content['start']
+        end_str = content['end']
 
-        # Extract date in UTC
-        start_date = start_datetime_utc.date()
-        end_date = end_datetime_utc.date()
+        # Define the date format that matches the frontend's date string
+        date_format = "%m/%d/%Y, %I:%M:%S %p"
+
+        # Convert the string to a datetime object (local time)
+        start_datetime = datetime.strptime(start_str, date_format)
+        end_datetime = datetime.strptime(end_str, date_format)
+
+        # Extract only the date part (YYYY-MM-DD)
+        start_date = start_datetime.date()  # This will give a date object (2024-12-02)
+        end_date = end_datetime.date()  # This will give a date object (2024-12-02)
+
+        # Now you can save `start_date` and `end_date` as 'YYYY-MM-DD' strings, or as date objects
+        start_date_str = start_date.strftime('%Y-%m-%d')  # Convert to string format if needed
+        end_date_str = end_date.strftime('%Y-%m-%d')  # Convert to string format if needed
+
 
         # Update the attributes of the item
         task.name = content['title']  # Assuming you're updating the 'name' attribute
         task.actionText = content['actionText']
         task.color = content['color']
-        task.start = start_date
-        task.end = end_date
-
+        task.start = start_date_str
+        task.end = end_date_str
+        print(task.start)
+        print(task.end)
         # Commit the changes to the database session
         db.session.commit()
 
