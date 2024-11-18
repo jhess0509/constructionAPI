@@ -50,6 +50,13 @@ class Task(db.Model):
     start = db.Column(db.Date, nullable=False)
     end = db.Column(db.Date, nullable=False)
 
+    def __repr__(self):
+        return (
+            f"<Task id={self.id}, projectId={self.projectId}, name='{self.name}', "
+            f"color='{self.color}', actionText='{self.actionText}', "
+            f"start={self.start}, end={self.end}>"
+        )
+
 
 class Holiday(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -317,6 +324,7 @@ def updateTask():
     print(content)
 
     task = Task.query.get(content['id'])
+    print(task)
 
     if task:
         # Convert the timestamp to a Python datetime object
@@ -345,8 +353,7 @@ def updateTask():
         task.color = content['color']
         task.start = start_date_str
         task.end = end_date_str
-        print(task.start)
-        print(task.end)
+        print(task)
         # Commit the changes to the database session
         db.session.commit()
 
@@ -401,7 +408,7 @@ def delete_task(task_id):
 @app.route('/data/allItems', methods=['GET'])
 def get_all_items():
     # Query all projects
-    projects = Project.query.filter(Project.status != 'complete').all()
+    projects = Project.query.filter(Project.status != 'complete').order_by(Project.id).all()
 
     # Convert projects to a JSON-compatible format
     projects_json = [
@@ -417,7 +424,7 @@ def get_all_items():
     ]
 
     # Query all tasks
-    tasks = Task.query.all()
+    tasks = Task.query.order_by(Task.start).all()
 
     # Convert tasks to a JSON-compatible format
     tasks_json = [
