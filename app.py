@@ -35,6 +35,7 @@ class Project(db.Model):
     companyName = db.Column(db.String(100), nullable=False)
     start = db.Column(db.Date, nullable=False)
     end = db.Column(db.Date, nullable=False)
+    foreman_name = db.Column(db.String(200), nullable=True)
 
     def delete(self):
         db.session.delete(self)
@@ -90,6 +91,22 @@ class TaskList(db.Model):
 
 with app.app_context():
     db.create_all()
+    # Safe migration: add foreman_name column if it doesn't exist yet
+    try:
+        db.session.execute(text(
+            "ALTER TABLE project ADD COLUMN IF NOT EXISTS foreman_name VARCHAR(200)"
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    # Data migration: copy companyName → foreman_name for all rows where foreman_name is empty
+    try:
+        db.session.execute(text(
+            "UPDATE project SET foreman_name = \"companyName\" WHERE foreman_name IS NULL OR foreman_name = ''"
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 # NOTHING BELOW THIS LINE NEEDS TO CHANGE
@@ -113,9 +130,10 @@ def getActiveProjects():
             'id': project.id,
             'name': project.name,
             'companyName': project.companyName,
+            'foremanName': project.foreman_name or '',
             'status': project.status,
-            'start': str(project.start),  # Convert datetime to string for JSON serialization
-            'end': str(project.end)  # Convert datetime to string for JSON serialization
+            'start': str(project.start),
+            'end': str(project.end)
         }
         for project in projects_without_specific_color_tasks
     ]
@@ -147,9 +165,10 @@ def getOnHoldProjects():
             'id': project.id,
             'name': project.name,
             'companyName': project.companyName,
+            'foremanName': project.foreman_name or '',
             'status': project.status,
-            'start': str(project.start),  # Convert datetime to string for JSON serialization
-            'end': str(project.end)  # Convert datetime to string for JSON serialization
+            'start': str(project.start),
+            'end': str(project.end)
         }
         for project in projects_with_specific_color_tasks
     ]
@@ -193,6 +212,26 @@ def delete_project(project_id):
     return jsonify({'message': 'Project deleted successfully'})
 
 
+@app.route('/data/update/<int:project_id>', methods=['PUT'])
+def update_project(project_id):
+    project = Project.query.get_or_404(project_id)
+    data = request.get_json()
+    if 'name' in data:
+        project.name = data['name']
+    if 'companyName' in data:
+        project.companyName = data['companyName']
+    if 'status' in data:
+        project.status = data['status']
+    if 'start' in data:
+        project.start = convertDate(data['start'])
+    if 'end' in data:
+        project.end = convertDate(data['end'])
+    if 'foremanName' in data:
+        project.foreman_name = data['foremanName']
+    db.session.commit()
+    return jsonify({'message': 'Project updated successfully'}), 200
+
+
 @app.route('/data/getCompletedProjects')
 def getCompletedProjects():
     complete_projects = Project.query.filter_by(status='complete').all()
@@ -203,15 +242,33 @@ def getCompletedProjects():
             'id': project.id,
             'name': project.name,
             'companyName': project.companyName,
+            'foremanName': project.foreman_name or '',
             'status': project.status,
-            'start': str(project.start),  # Convert datetime to string for JSON serialization
-            'end': str(project.end)  # Convert datetime to string for JSON serialization
+            'start': str(project.start),
+            'end': str(project.end)
         }
         for project in complete_projects
     ]
 
     # Return the JSON response
     return jsonify(complete_projects_json)
+
+
+@app.route('/data/allProjects')
+def allProjects():
+    projects = Project.query.all()
+    return jsonify([
+        {
+            'id': p.id,
+            'name': p.name,
+            'companyName': p.companyName,
+            'foremanName': p.foreman_name or '',
+            'status': p.status,
+            'start': str(p.start),
+            'end': str(p.end)
+        }
+        for p in projects
+    ])
 
 
 @app.post('/data/createProject')
@@ -227,7 +284,8 @@ def create():
                             companyName=content['companyName'],
                             status=content['status'],
                             start=start_date,
-                            end=end_date)
+                            end=end_date,
+                            foreman_name=content.get('foremanName', ''))
 
     db.session.add(createProject)
     db.session.flush()  # this is to get the projectID
