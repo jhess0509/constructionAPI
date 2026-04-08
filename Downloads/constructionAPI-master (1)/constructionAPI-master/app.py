@@ -465,33 +465,33 @@ def delete_task(task_id):
 
 @app.route('/data/allItems', methods=['GET'])
 def get_all_items():
-    # Query all non-complete projects
+    # Query all projects
     projects = Project.query.filter(Project.status != 'complete').order_by(Project.id).all()
 
-    # Query all tasks
-    tasks = Task.query.order_by(Task.start).all()
-
+    # Convert projects to a JSON-compatible format
     projects_json = [
         {
-            'id': str(project.id),
+            'id': project.id,
             'title': project.name,
             'companyName': project.companyName,
             'status': project.status,
-            'start': str(project.start),
-            'end': str(project.end)
+            'start': str(project.start),  # Convert datetime to string for JSON serialization
+            'end': str(project.end)  # Convert datetime to string for JSON serialization
         }
         for project in projects
     ]
 
+    # Query all tasks
+    tasks = Task.query.order_by(Task.start).all()
+
     # Convert tasks to a JSON-compatible format
-    # group_id and id must be strings so the gantt library matches them correctly
     tasks_json = [
         {
-            'id': str(task.id),
+            'id': task.id,
             'title': task.name,
             'color': task.color,
             'actionText': task.actionText,
-            'group_id': str(task.projectId),
+            'group_id': task.projectId,
             'start': task.start,
             'end': task.end
         }
