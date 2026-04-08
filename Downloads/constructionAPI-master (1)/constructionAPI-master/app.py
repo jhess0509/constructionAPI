@@ -471,13 +471,9 @@ def get_all_items():
     # Query all tasks
     tasks = Task.query.order_by(Task.start).all()
 
-    # Build a set of project IDs that actually have tasks
-    project_ids_with_tasks = {task.projectId for task in tasks}
-
-    # Only include groups that have at least one task (avoids permanently-collapsed empty groups)
     projects_json = [
         {
-            'id': project.id,
+            'id': str(project.id),
             'title': project.name,
             'companyName': project.companyName,
             'status': project.status,
@@ -485,17 +481,17 @@ def get_all_items():
             'end': str(project.end)
         }
         for project in projects
-        if project.id in project_ids_with_tasks
     ]
 
     # Convert tasks to a JSON-compatible format
+    # group_id and id must be strings so the gantt library matches them correctly
     tasks_json = [
         {
-            'id': task.id,
+            'id': str(task.id),
             'title': task.name,
             'color': task.color,
             'actionText': task.actionText,
-            'group_id': task.projectId,
+            'group_id': str(task.projectId),
             'start': task.start,
             'end': task.end
         }
