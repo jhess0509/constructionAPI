@@ -465,24 +465,28 @@ def delete_task(task_id):
 
 @app.route('/data/allItems', methods=['GET'])
 def get_all_items():
-    # Query all projects
+    # Query all non-complete projects
     projects = Project.query.filter(Project.status != 'complete').order_by(Project.id).all()
 
-    # Convert projects to a JSON-compatible format
+    # Query all tasks
+    tasks = Task.query.order_by(Task.start).all()
+
+    # Build a set of project IDs that actually have tasks
+    project_ids_with_tasks = {task.projectId for task in tasks}
+
+    # Only include groups that have at least one task (avoids permanently-collapsed empty groups)
     projects_json = [
         {
             'id': project.id,
             'title': project.name,
             'companyName': project.companyName,
             'status': project.status,
-            'start': str(project.start),  # Convert datetime to string for JSON serialization
-            'end': str(project.end)  # Convert datetime to string for JSON serialization
+            'start': str(project.start),
+            'end': str(project.end)
         }
         for project in projects
+        if project.id in project_ids_with_tasks
     ]
-
-    # Query all tasks
-    tasks = Task.query.order_by(Task.start).all()
 
     # Convert tasks to a JSON-compatible format
     tasks_json = [
